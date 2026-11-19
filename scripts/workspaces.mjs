@@ -3,7 +3,7 @@ import './copy-notices.mjs';
 
 const command = process.argv[2];
 if (!['build', 'test', 'typecheck'].includes(command)) throw new Error('Expected build, test, or typecheck.');
-const names = ['@won005/feedback-core', '@won005/feedback-react', '@won005/feedback-react-native'];
+const names = ['@won005/feedback-core', '@won005/feedback-http', '@won005/feedback-server', '@won005/feedback-react', '@won005/feedback-react-native'];
 if (command !== 'test') names.push('@screen-feedback/example-web');
 if (command === 'typecheck') names.push('@screen-feedback/example-mobile');
 const npm = process.env.npm_execpath;

@@ -133,6 +133,19 @@ export interface MemoryFeedbackStore {
   setAccess(userId: string, allowed: boolean): void;
 }
 
+/** Trusted host persistence format. Never accept snapshots from network callers. */
+export interface FeedbackState {
+  format: 1;
+  threads: FeedbackThread[];
+  usedIds: string[];
+  receipts: Array<[string, Array<[string, { fingerprint: string | null; threadId: string; commentId: string }]>]>;
+  notifications: Array<[string, FeedbackNotification[]]>;
+}
+
+export interface StatefulFeedbackStore extends MemoryFeedbackStore {
+  exportState(): FeedbackState;
+}
+
 export type FeedbackErrorCode =
   | "ACCESS_DENIED"
   | "INVALID_INPUT"

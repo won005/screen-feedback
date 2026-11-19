@@ -9,7 +9,7 @@ const destination = join(root, 'artifacts', 'packages');
 mkdirSync(destination, { recursive: true });
 const npm = process.env.npm_execpath;
 if (!npm) throw new Error('Run through npm scripts.');
-for (const name of ['core', 'react', 'react-native']) {
+for (const name of ['core', 'http', 'react', 'react-native']) {
   const cwd = join(root, 'packages', name);
   const result = spawnSync(process.execPath, [npm, 'pack', '--json', '--pack-destination', destination], { cwd, encoding: 'utf8' });
   if (result.error) throw result.error;
