@@ -19,5 +19,5 @@ JWT·프로젝트 경계, 만료·권한 회수, 사진 메타데이터 위조, 
 3. [x] 어댑터: `packages/http/src/{index,adapter}.ts`와 테스트. FeedbackAdapter 완전 구현, 웹·앱 사진 입력, 토큰 회전·재연결·오류 전달 확인.
 4. [x] 배포 구성: `deploy/oracle/{Dockerfile,compose.yaml,Caddyfile,.env.example}`와 운영 안내. 타입·빌드·기존 회귀·서버/어댑터 검사·패키징·ARM 이미지 확인.
 5. [x] 독립 리뷰 및 회귀 수정. 전체 83개 검사, 4개 SDK tarball, ARM64 비루트 컨테이너의 JWT·HTTP·재시작 보존, Caddy·Compose 구문 검사 통과.
-6. [ ] 브랜치 게시와 기존 SDK 위에 쌓는 Draft PR.
+6. [x] 브랜치 게시와 기존 SDK 위에 쌓는 [Draft PR #4](https://github.com/won005/screen-feedback/pull/4).
 7. [ ] Oracle 콘솔에서 무료 용량 확인 후 VM 생성·배포·원격 검증. 로그인/DNS/인증 설정을 확보하지 못하면 배포 미완료로 구분함.
