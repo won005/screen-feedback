@@ -1,0 +1,22 @@
+{
+  "name": "@screen-feedback/example-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "export": "expo export --platform all"
+  },
+  "dependencies": {
+    "@won005/feedback-core": "0.1.0",
+    "@won005/feedback-react-native": "0.1.0",
+    "expo": "~54.0.0",
+    "expo-image-picker": "~17.0.10",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-svg": "15.12.1"
+  }
+}

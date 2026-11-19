@@ -1,0 +1,8 @@
+{
+  "name": "@screen-feedback/example-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "dev": "vite --host 127.0.0.1", "build": "tsc --noEmit && vite build", "typecheck": "tsc --noEmit" },
+  "dependencies": { "@won005/feedback-core": "0.1.0", "@won005/feedback-react": "0.1.0", "react": "19.1.0", "react-dom": "19.1.0" }
+}

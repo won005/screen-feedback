@@ -1,0 +1,46 @@
+{
+  "name": "screen-feedback-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "overrides": {
+    "rollup": "npm:@rollup/wasm-node@4.68.7"
+  },
+  "scripts": {
+    "build": "node scripts/workspaces.mjs build",
+    "test": "node scripts/workspaces.mjs test",
+    "typecheck": "node scripts/workspaces.mjs typecheck",
+    "dev:web": "npm run dev --workspace @screen-feedback/example-web",
+    "dev:mobile": "npm run start --workspace @screen-feedback/example-mobile",
+    "pack:check": "node scripts/pack-check.mjs"
+  },
+  "devDependencies": {
+    "@react-native/babel-preset": "0.81.5",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/react-native": "^13.3.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "babel-jest": "^29.7.0",
+    "jest": "^29.7.0",
+    "jsdom": "^26.1.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-svg": "15.12.1",
+    "react-test-renderer": "19.1.0",
+    "rollup": "npm:@rollup/wasm-node@4.68.7",
+    "typescript": "^5.9.3",
+    "vite": "^6.1.0"
+  }
+}

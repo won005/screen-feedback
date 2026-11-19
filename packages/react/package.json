@@ -1,0 +1,19 @@
+{
+  "name": "@won005/feedback-react",
+  "version": "0.1.0",
+  "description": "Positioned feedback for React applications with host-owned storage and access control",
+  "type": "module",
+  "license": "MIT",
+  "files": ["dist", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "node ../../scripts/copy-notices.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": { "@won005/feedback-core": "0.1.0" },
+  "peerDependencies": { "react": "^19.1.0", "react-dom": "^19.1.0" }
+}
