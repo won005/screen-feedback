@@ -11,6 +11,8 @@ import type {
   FeedbackUser,
   MemoryFeedbackStore,
   MemoryFeedbackStoreOptions,
+  FeedbackState,
+  StatefulFeedbackStore,
 } from "./types.ts";
 
 interface MutationReceipt {
@@ -52,6 +54,12 @@ function sameScreen(left: FeedbackScreen, right: FeedbackScreen): boolean {
  * Writes have no await points: commit precedes best-effort change notifications.
  */
 export function createMemoryFeedbackStore(options: MemoryFeedbackStoreOptions): MemoryFeedbackStore {
+  const { forUser, setAccess } = createStatefulFeedbackStore(options);
+  return { forUser, setAccess };
+}
+
+/** Restore only trusted host snapshots; identity and grants always come from current options. */
+export function createStatefulFeedbackStore(options: MemoryFeedbackStoreOptions, state?: FeedbackState): StatefulFeedbackStore {
   if (!options || !Array.isArray(options.users) || !Array.isArray(options.allowedUserIds)) {
     invalid("users and allowedUserIds must be arrays.");
   }
@@ -83,6 +91,13 @@ export function createMemoryFeedbackStore(options: MemoryFeedbackStoreOptions): 
   const receipts = new Map<string, Map<string, MutationReceipt>>();
   const notifications = new Map<string, Map<string, FeedbackNotification>>();
   const subscriptions = new Map<string, Set<Subscription>>();
+  if (state !== undefined) {
+    if (state.format !== 1 || !Array.isArray(state.threads) || !Array.isArray(state.usedIds) || !Array.isArray(state.receipts) || !Array.isArray(state.notifications)) invalid("Unsupported feedback snapshot format.");
+    for (const thread of state.threads) threads.set(thread.id, copyThread(thread));
+    for (const id of state.usedIds) usedIds.add(id);
+    for (const [id, entries] of state.receipts) receipts.set(id, new Map(entries.map(([key, receipt]) => [key, { ...receipt }])));
+    for (const [id, inbox] of state.notifications) notifications.set(id, new Map(inbox.map(item => [item.id, copyNotification(item)])));
+  }
 
   function nextId(): string {
     const id = text(generateId(), "generated ID", 128);
@@ -404,6 +419,14 @@ export function createMemoryFeedbackStore(options: MemoryFeedbackStoreOptions): 
 
   return {
     forUser,
+    exportState() {
+      return {
+        format: 1,
+        threads: [...threads.values()].map(copyThread), usedIds: [...usedIds],
+        receipts: [...receipts].map(([id, entries]) => [id, [...entries].map(([key, receipt]) => [key, { ...receipt }])]),
+        notifications: [...notifications].map(([id, inbox]) => [id, [...inbox.values()].map(copyNotification)]),
+      };
+    },
     setAccess(userId, enabled) {
       const id = requireUser(userId).id;
       if (typeof enabled !== "boolean") invalid("allowed must be a boolean.");

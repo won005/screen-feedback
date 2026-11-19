@@ -2,7 +2,7 @@
 
 웹과 React Native 앱에 화면 위치별 댓글을 붙이는 MIT 라이선스 SDK.
 
-SitePing의 앵커 구현을 활용함. 자체 서버·DB·로그인·사진 보관 서버·관리사이트를 포함하지 않으며 저장과 인증은 사용하는 서비스의 어댑터로 연결함.
+SitePing의 앵커 구현을 활용함. 서버 없는 메모리 모드와 선택형 자체 호스팅 서버를 제공하며, 인증은 사용하는 서비스와 연결함. 별도 로그인 화면·관리사이트는 포함하지 않음.
 
 ## 기능
 
@@ -41,6 +41,7 @@ Expo Go에서 QR을 열어 iOS/Android 예제를 실행함. 네이티브 의존�
 | 패키지 | 역할 |
 |---|---|
 | `@won005/feedback-core` | 공통 계약, 메모리 예제 저장소, SitePing 상대 좌표 계산 |
+| `@won005/feedback-http` | 웹·앱 공통 JWT HTTP·WebSocket·사진 어댑터 |
 | `@won005/feedback-react` | React 웹 오버레이, SitePing의 semantic/shadow DOM 앵커 |
 | `@won005/feedback-react-native` | 네이티브 위치 측정·길게 누르기·동일 댓글 UI |
 
@@ -55,6 +56,14 @@ npm run pack:check
 ```bash
 npm install ./won005-feedback-core-0.1.0.tgz ./won005-feedback-react-0.1.0.tgz
 ```
+
+## 실제 서버 연결
+
+서버 패키지 `@won005/feedback-server`를 Oracle ARM VM 등에 자체 호스팅할 수 있음. SQLite에 댓글·알림·사진을 보존하고 프로젝트별로 운영자가 허용한 계정만 공유함. 호스트의 로그인 JWT 공개키·issuer·audience를 연결해야 하며 공개 API 키만으로 사용자 신원을 신뢰하지 않음.
+
+웹·앱에서 메모리 어댑터 대신 `createHttpFeedbackAdapter({ baseUrl, projectId, getToken })`를 전달함. UI는 같은 FeedbackAdapter 계약을 사용함. [HTTP 연동](packages/http/README.md), [Oracle 실행·백업·복구](deploy/oracle/README.md), [서버 계약](docs/oracle-server.md) 참조.
+
+Oracle VM·DNS·인증 제공자 설정과 원격 건강 확인은 실제 배포 단계임. SDK·서버 소스와 로컬 검증을 완료해도 배포가 자동 완료되는 것은 아님.
 
 ## 웹 연동
 
@@ -115,6 +124,6 @@ import { FeedbackProvider, FeedbackAnchor } from '@won005/feedback-react-native'
 
 ## 검증 범위
 
-코어 26개·웹 25개·앱 15개 테스트로 권한·삭제 범위·상태 충돌·멘션·구독 실패·사진 보기·화면 전환을 검사함. 실제 웹 브라우저에서 댓글 등록, 댓글창 드래그, 툴바 접기·펼치기, 사진 선택·전체 보기, 일반 모달·열린 Shadow DOM 모달 내부 입력을 확인함.
+코어 29개·HTTP 3개·서버 11개·웹 25개·앱 15개 테스트로 권한·삭제 범위·상태 충돌·멘션·구독 실패·사진 보기·화면 전환을 검사함. 서버는 실제 SQLite·HTTP·WebSocket과 별도 프로세스의 사진 정리 경합·백업 복구를 검증함. ARM64 비루트 컨테이너의 JWT·HTTP·재시작 보존, Compose 설정·Caddy 설정을 확인함. 실제 웹 브라우저에서 댓글 등록, 댓글창 드래그, 툴바 접기·펼치기, 사진 선택·전체 보기, 일반 모달·열린 Shadow DOM 모달 내부 입력을 확인함.
 
 Expo 예제의 Android·iOS Hermes 번들 생성은 확인함. 실제 기기나 에뮬레이터에서의 길게 누르기·드래그·키보드·사진 권한·네이티브 모달 상호작용은 아직 검증하지 않음. 앱에 적용하기 전 대상 기기에서 확인해야 함.

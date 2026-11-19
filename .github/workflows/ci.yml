@@ -20,5 +20,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run pack:check
+      - run: docker build -t screen-feedback-server:ci -f deploy/oracle/Dockerfile .
+      - run: docker run --rm -e FEEDBACK_DOMAIN=feedback.example.test -v "${{ github.workspace }}/deploy/oracle/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
       - run: npx expo export --platform android --platform ios
         working-directory: examples/mobile

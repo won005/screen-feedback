@@ -1,0 +1,15 @@
+.git
+.superpowers
+node_modules
+**/node_modules
+**/dist
+**/.expo
+.env
+.env.*
+**/.env
+**/.env.*
+**/data
+**/backups
+**/*.sqlite*
+artifacts
+*.tgz
