@@ -4,6 +4,7 @@ import type { FeedbackAccess, FeedbackAdapter, FeedbackAnchor, FeedbackAttachmen
 import { captureAnchor, clampPosition, measureAnchors, sameScreen, type Point } from "./geometry.js";
 import { anchorRoots, ANCHOR_KEY_ATTR } from "./siteping/semantic-anchor.js";
 import { styles } from "./styles.js";
+import { FeedbackTextarea } from "./FeedbackTextarea.js";
 
 export interface FeedbackOverlayProps {
   adapter: FeedbackAdapter;
@@ -145,7 +146,9 @@ function FeedbackSession({ adapter, screen, accentColor = "#d92d35", initialEnab
 
   useEffect(() => { sessionUi.set(adapter, { enabled, collapsed, position }); }, [adapter, enabled, collapsed, position]);
 
+  const uploadRequest = useRef<object | null>(null);
   const clearDraft = useCallback(() => {
+    uploadRequest.current = null; setUploading(false);
     draftContext.current++;
     setBody(""); setAttachments([]); setMentions([]); setMemberQuery(null); setEditing(null); setDraftResolved(false); setViewingPhoto(null); mutation.current = null;
   }, []);
@@ -210,7 +213,7 @@ function FeedbackSession({ adapter, screen, accentColor = "#d92d35", initialEnab
     let active = true;
     scope.subscribed = false;
     scope.epoch++; scope.refreshId++; memberRequest.current++; draftContext.current++;
-    operationLock.current = false; setBusy(false); setUploading(false); setAccess(null);
+    operationLock.current = false; uploadRequest.current = null; setBusy(false); setUploading(false); setAccess(null);
     setUsers([]); mentionLabels.current.clear(); setMemberDirectoryReady(false);
     try {
       const dispose = adapter.subscribe((event) => {
@@ -320,7 +323,7 @@ function FeedbackSession({ adapter, screen, accentColor = "#d92d35", initialEnab
 
   const waitingForMentionLabels = Boolean(editing && !memberDirectoryReady && mentions.some(id => !mentionLabels.current.has(id)));
   const send = () => {
-    if (waitingForMentionLabels || uploading || (!body.trim() && attachments.length === 0) || (!pending && !selected)) return;
+    if (waitingForMentionLabels || uploadRequest.current || uploading || (!body.trim() && attachments.length === 0) || (!pending && !selected)) return;
     const destination = pending ? { anchor: pending.anchor, screen, resolved: draftResolved } : { threadId: selected!.id };
     const payload = { body: body.trim(), attachments, mentions: mentions.filter(id => { const name = mentionLabels.current.get(id); return name !== undefined && hasMention(body, name); }) };
     const signature = JSON.stringify({ destination, ...payload });
@@ -336,20 +339,26 @@ function FeedbackSession({ adapter, screen, accentColor = "#d92d35", initialEnab
     });
   };
 
-  const upload = async (file: File | undefined) => {
-    if (!file || !adapter.uploadAttachment || uploading) return;
-    if (!["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif", "image/bmp", "image/heic", "image/heif"].includes(file.type)) { setError("지원하는 이미지 파일을 선택해 주세요."); return; }
-    if (file.size > 5 * 1024 * 1024 || attachments.length >= 5) { setError("사진은 5MB 이하, 최대 5개까지 첨부할 수 있어요."); return; }
-    const epoch = scope.epoch;
-    const context = draftContext.current;
+  const upload = async (files: readonly File[]) => {
+    if (!files.length || !adapter.uploadAttachment || operationLock.current || editing) return;
+    if (uploadRequest.current) { setError("이미지를 업로드하고 있어요. 완료 후 다시 붙여넣어 주세요."); return; }
+    if (files.some(file => !["image/png", "image/jpeg", "image/webp", "image/gif", "image/avif", "image/bmp", "image/heic", "image/heif"].includes(file.type))) { setError("지원하는 이미지 파일을 선택해 주세요."); return; }
+    if (files.some(file => file.size === 0 || file.size > 5 * 1024 * 1024) || attachments.length + files.length > 5) { setError("사진은 5MB 이하, 최대 5개까지 첨부할 수 있어요."); return; }
+    const epoch = scope.epoch, context = draftContext.current, request = {};
+    uploadRequest.current = request;
+    const current = () => scope.alive && epoch === scope.epoch && context === draftContext.current && uploadRequest.current === request;
     setUploading(true);
     try {
-      const attachment = await adapter.uploadAttachment(file);
-      if (!scope.alive || epoch !== scope.epoch || context !== draftContext.current) return;
-      if (!attachment.mimeType.startsWith("image/")) throw new Error("The upload adapter returned a non-image attachment");
-      setAttachments((previous) => [...previous, attachment]);
-    } catch (failure) { if (scope.alive && epoch === scope.epoch && context === draftContext.current) report(failure); }
-    finally { if (scope.alive && epoch === scope.epoch) setUploading(false); }
+      const uploaded: FeedbackAttachment[] = [];
+      for (const file of files) {
+        const attachment = await adapter.uploadAttachment(file);
+        if (!current()) return;
+        if (!attachment.mimeType.startsWith("image/")) throw new Error("The upload adapter returned a non-image attachment");
+        uploaded.push(attachment);
+      }
+      if (current()) setAttachments(previous => [...previous, ...uploaded]);
+    } catch (failure) { if (current()) report(failure); }
+    finally { if (uploadRequest.current === request) { uploadRequest.current = null; if (scope.alive && epoch === scope.epoch) setUploading(false); } }
   };
 
   const loadMembers = async (query: string) => {
@@ -474,11 +483,11 @@ function FeedbackSession({ adapter, screen, accentColor = "#d92d35", initialEnab
           {editing && <div className="sf-editing"><strong>댓글 수정</strong><button type="button" onClick={clearDraft} disabled={busy}>취소</button></div>}
           <p className="sf-note">이 피드백은 허용된 참여자에게 공유됩니다.</p>
           {memberQuery !== null && <div className="sf-members" role="listbox" aria-label="멘션할 참여자">{members.length ? members.map((user) => <button type="button" key={user.id} className="sf-member" role="option" aria-selected={false} onClick={() => chooseMember(user)}><Avatar user={user} />{user.name}</button>) : <div className="sf-loading">일치하는 참여자가 없습니다.</div>}</div>}
-          <textarea ref={textRef} className="sf-textarea" aria-label={pending ? "댓글 내용" : "답글 내용"} placeholder={pending ? "댓글 남기기…" : "답글 남기기…"} maxLength={2000} value={body} disabled={busy} onChange={(event) => changeBody(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); send(); } }} />
+          <FeedbackTextarea ref={textRef} className="sf-textarea" aria-label={pending ? "댓글 내용" : "답글 내용"} placeholder={pending ? "댓글 남기기…" : "답글 남기기…"} maxLength={2000} value={body} disabled={busy} onChange={(event) => changeBody(event.target.value)} onSend={send} onPasteImages={adapter.uploadAttachment && !editing ? files => { void upload(files); } : undefined} />
           {attachments.length > 0 && <div className="sf-images">{attachments.map((attachment) => <div key={attachment.id} className="sf-attachment"><button type="button" className="sf-photo-preview" aria-label={`${attachment.name} 크게 보기`} onClick={() => setViewingPhoto(attachment)}><img className="sf-image" src={attachment.url} alt={attachment.name} /></button>{!editing && <button type="button" className="sf-remove-image" disabled={busy} aria-label={`${attachment.name} 첨부 제거`} onClick={() => setAttachments((previous) => previous.filter((entry) => entry.id !== attachment.id))}><Icon name="close" /></button>}</div>)}</div>}
           {uploading && <div className="sf-loading" role="status">이미지를 업로드하고 있습니다.</div>}
           {waitingForMentionLabels && <div className="sf-loading" role="status">기존 멘션 정보를 확인한 뒤 저장할 수 있어요.</div>}
-          <div className="sf-composer-bottom"><button type="button" className="sf-icon" disabled={busy} aria-label="참여자 멘션" onClick={() => { if (memberQuery !== null) setMemberQuery(null); else void loadMembers(""); }}><Icon name="mention" /></button>{adapter.uploadAttachment && !editing && <><input ref={fileRef} type="file" accept="image/*" hidden onChange={(event) => { void upload(event.target.files?.[0]); event.target.value = ""; }} /><button type="button" className="sf-icon" disabled={busy || uploading} aria-label="이미지 첨부" onClick={() => fileRef.current?.click()}><Icon name="image" /></button></>}<button type="button" className="sf-send" disabled={busy || uploading || waitingForMentionLabels || (!body.trim() && attachments.length === 0)} onClick={send}>{busy ? "전송 중" : editing ? "저장" : "전송"}<Icon name="send" /></button></div>
+          <div className="sf-composer-bottom"><button type="button" className="sf-icon" disabled={busy} aria-label="참여자 멘션" onClick={() => { if (memberQuery !== null) setMemberQuery(null); else void loadMembers(""); }}><Icon name="mention" /></button>{adapter.uploadAttachment && !editing && <><input ref={fileRef} type="file" accept="image/*" hidden onChange={(event) => { void upload(Array.from(event.target.files ?? [])); event.target.value = ""; }} /><button type="button" className="sf-icon" disabled={busy || uploading} aria-label="이미지 첨부" onClick={() => fileRef.current?.click()}><Icon name="image" /></button></>}<button type="button" className="sf-send" disabled={busy || uploading || waitingForMentionLabels || (!body.trim() && attachments.length === 0)} onClick={send}>{busy ? "전송 중" : editing ? "저장" : "전송"}<Icon name="send" /></button></div>
         </div>}
       </section>}
     </div>}

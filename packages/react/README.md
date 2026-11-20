@@ -38,3 +38,9 @@ SitePing에서 가져온 semantic 앵커는 중첩된 열린 shadow root도 탐�
 기존 멘션이 있는 댓글은 참여자 정보를 확인한 뒤 저장함. 조회에 성공했는데 대상이 더 이상 허용된 참여자가 아니면 해당 멘션의 수신자 ID만 제거하고 본문은 일반 텍스트로 유지함. 참여자 조회 실패는 다른 댓글 표시와 일반 답글 작성을 막지 않음.
 
 코드와 원저작권 고지는 MIT 라이선스임. 포함된 SitePing 부분은 `THIRD_PARTY_NOTICES.md` 참조.
+
+## Comment input
+
+Enter sends a comment or saves an edit. Shift+Enter inserts a newline. IME confirmation never sends. Clipboard image files (Ctrl+V or Cmd+V) follow the existing host upload adapter, with the same five-image and 5 MiB limits as the picker. Uploading blocks submission; failed uploads preserve the text.
+
+`FeedbackTextarea` is exported for host comment forms. It accepts textarea props/ref plus `onSend` and `onPasteImages`. Without `onSend`, Enter requests submission of its owning form. Hosts keep their validation, upload limits, pending locks, and session ownership checks. Editing preserves the existing attachment set.
