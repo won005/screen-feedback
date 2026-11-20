@@ -250,3 +250,89 @@ test("an unavailable former participant does not permanently prevent editing", a
   const saved = (await base.listThreads(screen))[0].comments[0];
   assert.equal(saved.body, "updated without the former participant"); assert.deepEqual(saved.mentions, []);
 });
+
+test("plain Enter sends a new question and Shift+Enter or Korean composition does not send", async () => {
+  const store=setup(),adapter=store.forUser("alice"),card=await mount(adapter);
+  await newComment(card);await enter("한글 댓글");
+  const input=ui().querySelector("textarea");
+  await act(async()=>{fireEvent.keyDown(input,{key:"Enter",code:"Enter",shiftKey:true});});
+  assert.equal((await adapter.listThreads(screen)).length,0);
+  await act(async()=>{fireEvent.compositionStart(input);fireEvent.keyDown(input,{key:"Enter",code:"Enter",isComposing:true,keyCode:229});fireEvent.compositionEnd(input);});
+  assert.equal((await adapter.listThreads(screen)).length,0);
+  await act(async()=>{fireEvent.keyDown(input,{key:"Enter",code:"Enter"});await wait();});
+  assert.equal((await adapter.listThreads(screen)).length,1);
+  assert.equal((await adapter.listThreads(screen))[0].comments[0].body,"한글 댓글");
+});
+
+test("clipboard image paste uploads and attaches the image before Enter sends", async () => {
+  const store=setup();let uploads=0;
+  const adapter={...store.forUser("alice"),async uploadAttachment(file){uploads++;return {id:"pasted-photo",name:file.name,url:"blob:https://example.test/pasted",mimeType:file.type};}};
+  const card=await mount(adapter);await newComment(card);
+  const image=new File(["capture"],"capture.png",{type:"image/png"});
+  await act(async()=>{fireEvent.paste(ui().querySelector("textarea"),{clipboardData:{items:[{kind:"file",type:"image/png",getAsFile:()=>image}],files:[image]}});await wait();});
+  assert.equal(uploads,1);
+  await act(async()=>{fireEvent.keyDown(ui().querySelector("textarea"),{key:"Enter",code:"Enter"});await wait();});
+  const threads=await adapter.listThreads(screen);assert.equal(threads.length,1);assert.equal(threads[0].comments[0].attachments.length,1);
+});
+
+test("clipboard upload locks Enter and duplicate paste until the photo is ready", async () => {
+  const store=setup(),base=store.forUser("alice");let release,uploads=0,posts=0;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const adapter={...base,async uploadAttachment(file){uploads++;await gate;return {id:"capture",name:file.name,url:"blob:https://example.test/capture",mimeType:file.type};},async createThread(input){posts++;return base.createThread(input);}};
+  const card=await mount(adapter);await newComment(card);await enter("사진과 함께");
+  const file=new File(["capture"],"capture.png",{type:"image/png"});
+  const clipboardData={items:[{kind:"file",type:file.type,getAsFile:()=>file}],files:[file]};
+  await act(async()=>{const input=ui().querySelector("textarea");fireEvent.paste(input,{clipboardData});fireEvent.paste(input,{clipboardData});fireEvent.keyDown(input,{key:"Enter"});await wait();});
+  assert.equal(uploads,1);assert.equal(posts,0);assert.equal(ui().querySelector(".sf-send").disabled,true);
+  await act(async()=>{release();await wait();});
+  await act(async()=>{const input=ui().querySelector("textarea");fireEvent.keyDown(input,{key:"Enter"});fireEvent.keyDown(input,{key:"Enter"});await wait();});
+  assert.equal(posts,1);const thread=(await adapter.listThreads(screen))[0];assert.equal(thread.comments[0].attachments.length,1);assert.equal(thread.comments[0].body,"사진과 함께");
+});
+
+test("clipboard limits reject a whole batch and preserve text; ordinary text paste stays native", async () => {
+  let uploads=0;const adapter={...setup().forUser("alice"),async uploadAttachment(){uploads++;throw Error("unexpected");}};
+  const card=await mount(adapter);await newComment(card);await enter("기존 내용");
+  const files=Array.from({length:6},(_,i)=>new File(["image"],i+".png",{type:"image/png"}));
+  await act(async()=>{fireEvent.paste(ui().querySelector("textarea"),{clipboardData:{items:files.map(file=>({kind:"file",getAsFile:()=>file})),files}});});
+  assert.equal(uploads,0);assert.match(ui().textContent,/최대 5개/);assert.equal(ui().querySelector("textarea").value,"기존 내용");
+  let nativePaste;
+  await act(async()=>{nativePaste=fireEvent.paste(ui().querySelector("textarea"),{clipboardData:{items:[{kind:"string",type:"text/plain"}],files:[],getData:()=>"일반 글"}});});
+  assert.equal(nativePaste,true);
+});
+
+test("pasting another capture while uploading explains how to retry without losing the first image", async () => {
+  const store=setup(),base=store.forUser("alice");let release;const uploads=[];
+  const gate=new Promise(resolve=>{release=resolve;});
+  const adapter={...base,async uploadAttachment(file){uploads.push(file.name);await gate;return {id:file.name,name:file.name,url:"blob:https://example.test/"+file.name,mimeType:file.type};}};
+  const card=await mount(adapter);await newComment(card);await enter("두 캡처");
+  const paste=async name=>act(async()=>{const file=new File([name],name,{type:"image/png"});fireEvent.paste(ui().querySelector("textarea"),{clipboardData:{items:[],files:[file]}});await wait();});
+  await paste("first.png");await paste("second.png");
+  assert.match(ui().textContent,/완료 후 다시 붙여넣어/);assert.deepEqual(uploads,["first.png"]);
+  assert.equal(ui().querySelector("textarea").value,"두 캡처");
+  await act(async()=>{release();await wait();});
+  await paste("second.png");
+  assert.deepEqual(uploads,["first.png","second.png"]);assert.equal(ui().querySelectorAll(".sf-attachment").length,2);
+});
+
+test("an old pasted image cannot attach to another draft or release its upload lock", async () => {
+  const pending=[],base=setup().forUser("alice");
+  const adapter={...base,uploadAttachment:file=>new Promise(resolve=>pending.push({file,resolve}))};
+  const card=await mount(adapter);await newComment(card);
+  const paste=async name=>act(async()=>{const file=new File([name],name+".png",{type:"image/png"});fireEvent.paste(ui().querySelector("textarea"),{clipboardData:{items:[{kind:"file",getAsFile:()=>file}],files:[file]}});await wait();});
+  await paste("old");await click(document.querySelector("main"));await newComment(card);await paste("new");
+  await act(async()=>{pending[0].resolve({id:"old",name:"old.png",url:"blob:https://example.test/old",mimeType:"image/png"});await wait();});
+  assert.equal(ui().querySelectorAll(".sf-attachment").length,0);assert.equal(ui().querySelector(".sf-send").disabled,true);
+  await act(async()=>{pending[1].resolve({id:"new",name:"new.png",url:"blob:https://example.test/new",mimeType:"image/png"});await wait();});
+  assert.equal(ui().querySelectorAll(".sf-attachment").length,1);
+  await act(async()=>{fireEvent.keyDown(ui().querySelector("textarea"),{key:"Enter"});await wait();});
+  assert.equal((await base.listThreads(screen))[0].comments[0].attachments[0].id,"new");
+});
+
+test("IME compatibility key 229 never sends and failed paste retains the draft", async () => {
+  const base=setup().forUser("alice"),adapter={...base,async uploadAttachment(){throw Error("offline");}};
+  const card=await mount(adapter);await newComment(card);await enter("보존할 한글");
+  await act(async()=>{fireEvent.keyDown(ui().querySelector("textarea"),{key:"Enter",isComposing:false,keyCode:229});await wait();});
+  assert.equal((await base.listThreads(screen)).length,0);
+  await act(async()=>{const file=new File(["image"],"capture.png",{type:"image/png"});fireEvent.paste(ui().querySelector("textarea"),{clipboardData:{items:[],files:[file]}});await wait();});
+  assert.equal(ui().querySelector("textarea").value,"보존할 한글");assert.equal(ui().querySelector(".sf-send").disabled,false);
+});
